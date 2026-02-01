@@ -1,31 +1,31 @@
 <script>
-  let recorder;
-  let chunks = [];
+  document.addEventListener("DOMContentLoaded", () => {
+    let recorder;
+    let chunks = [];
   
-  const startBtn = document.getElementById("start");
-  const stopBtn = document.getElementById("stop");
+    const startBtn = document.getElementById("start");
+    const stopBtn = document.getElementById("stop");
   
-  startBtn.onclick = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    recorder = new MediaRecorder(stream);
-    chunks = [];
+    startBtn.onclick = async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recorder = new MediaRecorder(stream);
+      chunks = [];
   
-    recorder.ondataavailable = e => chunks.push(e.data);
-    recorder.start();
+      recorder.ondataavailable = e => chunks.push(e.data);
+      recorder.start();
   
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
-  };
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+    };
   
-  stopBtn.onclick = () => {
-    recorder.stop();
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
+    stopBtn.onclick = async () => {
+      recorder.stop();
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
   
-    recorder.onstop = async () => {
-      try {
-        const blob = new Blob(chunks, { type: "audio/wav" });
-        const file = new File([blob], "record.wav");
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const file = new File([blob], "audio.webm");
   
         const form = new FormData();
         form.append("file", file);
@@ -38,20 +38,11 @@
           }
         );
   
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text);
-        }
-  
         const data = await res.json();
         document.getElementById("en").textContent = data.en;
         document.getElementById("zh").textContent = data.zh;
-  
-      } catch (err) {
-        alert("發生錯誤：" + err.message);
-        console.error(err);
-      }
+      };
     };
-  };
+  });
   </script>
   
