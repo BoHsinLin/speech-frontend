@@ -6,42 +6,42 @@
   <title>Speech Translator</title>
 </head>
 <body>
-  <h2>🎙 英文 → 中文（Google 即時）</h2>
+  <h2>🎙 英文 → 中文 即時翻譯</h2>
 
-  <button id="start">開始說話</button>
+  <button id="start">開始錄音</button>
+  <button id="stop" disabled>停止</button>
 
   <h3>英文</h3>
   <pre id="en"></pre>
 
+  <h3>中文</h3>
+  <pre id="zh"></pre>
+
   <script>
     const startBtn = document.getElementById("start");
     const enBox = document.getElementById("en");
-
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      alert("你的瀏覽器不支援語音辨識");
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = "en-US";
-    recognition.interimResults = false;
-    recognition.continuous = false;
-
+  
+    let recognition;
+  
     startBtn.onclick = () => {
-      enBox.textContent = "🎧 聽取中...";
+      enBox.textContent = "🎧 Listening...";
+  
+      recognition = new webkitSpeechRecognition();
+      recognition.lang = "en-US";
+      recognition.interimResults = false;
+      recognition.continuous = false;
+  
+      recognition.onresult = (event) => {
+        enBox.textContent = event.results[0][0].transcript;
+      };
+  
+      recognition.onerror = (e) => {
+        enBox.textContent = "❌ " + e.error;
+      };
+  
       recognition.start();
     };
-
-    recognition.onresult = (event) => {
-      const text = event.results[0][0].transcript;
-      enBox.textContent = text;
-    };
-
-    recognition.onerror = (e) => {
-      enBox.textContent = "❌ 錯誤：" + e.error;
-    };
   </script>
+  
 </body>
 </html>
