@@ -43,8 +43,8 @@
         stopBtn.disabled = true;
     
         recorder.onstop = async () => {
-          const blob = new Blob(chunks, { type: "audio/webm" });
-          const file = new File([blob], "audio.webm");
+          const blob = new Blob(chunks, { type: "audio/wav" });
+          const file = new File([blob], "audio.wav", { type: "audio/wav" });
     
           const form = new FormData();
           form.append("file", file);
