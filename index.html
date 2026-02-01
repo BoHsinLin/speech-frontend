@@ -49,7 +49,7 @@
           const form = new FormData();
           form.append("file", file);
     
-          const res = await fetch("https://你的-cloud-run-URL/speech", {
+          const res = await fetch("https://speech-api-506893213123.europe-west1.run.app/speech", {
             method: "POST",
             body: form
           });
