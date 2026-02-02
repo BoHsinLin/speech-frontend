@@ -435,11 +435,11 @@
         </div>
 
         <div class="actions">
-          <div class="iconbtn" id="speakEnBtn" title="朗讀英文">
-            🔊<span style="font-size:12px;font-weight:800;margin-left:2px;">en</span>
+          <div class="iconbtn" id="speakEnBtn" title="朗讀原文">
+            🔊<span id="speakSourceLabel" style="font-size:12px;font-weight:800;margin-left:2px;">en</span>
           </div>
-          <div class="iconbtn" id="speakZhBtn" title="朗讀中文">
-            🔊<span style="font-size:12px;font-weight:800;margin-left:2px;">zh</span>
+          <div class="iconbtn" id="speakZhBtn" title="朗讀翻譯">
+            🔊<span id="speakTargetLabel" style="font-size:12px;font-weight:800;margin-left:2px;">zh</span>
           </div>
           <div class="iconbtn" id="moreBtn" title="下載文字">⬇</div>
         </div>
@@ -455,12 +455,12 @@
 
       <div class="result" id="resultBox" style="display:none;">
         <div class="row">
-          <div class="tag">EN</div>
-          <div class="textblock" id="outEn"></div>
+          <div class="tag" id="tagSource">EN</div>
+          <div class="textblock" id="outSource"></div>
         </div>
         <div class="row">
-          <div class="tag">ZH</div>
-          <div class="textblock" id="outZh"></div>
+          <div class="tag" id="tagTarget">ZH</div>
+          <div class="textblock" id="outTarget"></div>
         </div>
       </div>
     </div>
@@ -503,8 +503,10 @@
 
     const inputText = document.getElementById("inputText");
     const resultBox = document.getElementById("resultBox");
-    const outEn = document.getElementById("outEn");
-    const outZh = document.getElementById("outZh");
+    const outSource = document.getElementById("outSource");
+    const outTarget = document.getElementById("outTarget");
+    const tagSource = document.getElementById("tagSource");
+    const tagTarget = document.getElementById("tagTarget");
 
     const langFromEl = document.getElementById("langFrom");
     const langToEl = document.getElementById("langTo");
@@ -512,6 +514,8 @@
 
     const speakEnBtn = document.getElementById("speakEnBtn");
     const speakZhBtn = document.getElementById("speakZhBtn");
+    const speakSourceLabel = document.getElementById("speakSourceLabel");
+    const speakTargetLabel = document.getElementById("speakTargetLabel");
 
     // History elements
     const historyList = document.getElementById("historyList");
@@ -577,12 +581,18 @@
       });
     });
 
-    // language pairs (UI保留；目前後端只回 text)
+    // 語言設定
     let langFrom = "en";
     let langTo = "zh";
     function renderLang(){
       langFromEl.textContent = langFrom;
       langToEl.textContent = langTo;
+      // 更新朗讀按鈕標籤
+      speakSourceLabel.textContent = langFrom;
+      speakTargetLabel.textContent = langTo;
+      // 更新結果區的標籤
+      tagSource.textContent = langFrom.toUpperCase();
+      tagTarget.textContent = langTo.toUpperCase();
     }
     renderLang();
 
@@ -789,15 +799,17 @@
       return `${h}:${m}:${s}`;
     }
 
-    function saveToHistory(textEn, textZh) {
+    function saveToHistory(textSource, textTarget, srcLabel = "EN", tgtLabel = "ZH") {
       // 如果有內容才儲存
-      if (!textEn && !textZh) return;
+      if (!textSource && !textTarget) return;
 
       const item = {
         id: Date.now(),
         time: new Date(),
-        textEn: textEn,
-        textZh: textZh
+        textSource: textSource,
+        textTarget: textTarget,
+        srcLabel: srcLabel,
+        tgtLabel: tgtLabel
       };
 
       historyData.unshift(item); // 新的放最前面
@@ -826,12 +838,12 @@
             <span>🕐 ${formatTimestamp(item.time)}</span>
           </div>
           <div class="history-row">
-            <div class="history-tag">EN</div>
-            <div class="history-text">${escapeHtml(item.textEn) || "-"}</div>
+            <div class="history-tag">${escapeHtml(item.srcLabel)}</div>
+            <div class="history-text">${escapeHtml(item.textSource) || "-"}</div>
           </div>
           <div class="history-row">
-            <div class="history-tag">ZH</div>
-            <div class="history-text">${escapeHtml(item.textZh) || "-"}</div>
+            <div class="history-tag">${escapeHtml(item.tgtLabel)}</div>
+            <div class="history-text">${escapeHtml(item.textTarget) || "-"}</div>
           </div>
         `;
 
@@ -860,7 +872,6 @@
 
     /***********************
      * 7) Call backend /speech
-     * ✅ 後端目前回 { text: "..." }
      ***********************/
     async function sendToSpeechApi(wavBlob){
       if (!API_BASE) {
@@ -869,16 +880,21 @@
       }
 
       // ✅ 先將目前的結果存入歷史紀錄（如果有的話）
-      const currentEn = outEn.textContent?.trim() || "";
-      const currentZh = outZh.textContent?.trim() || "";
-      if (currentEn || currentZh) {
-        saveToHistory(currentEn, currentZh);
+      const currentSource = outSource.textContent?.trim() || "";
+      const currentTarget = outTarget.textContent?.trim() || "";
+      if (currentSource || currentTarget) {
+        // 儲存時記錄語言標籤
+        const srcLabel = tagSource.textContent?.trim() || "";
+        const tgtLabel = tagTarget.textContent?.trim() || "";
+        saveToHistory(currentSource, currentTarget, srcLabel, tgtLabel);
       }
 
       modeBadge.textContent = "處理中…";
 
       const form = new FormData();
       form.append("file", wavBlob, "record.wav");
+      form.append("source_lang", langFrom);
+      form.append("target_lang", langTo);
 
       try{
         const res = await fetch(SPEECH_ENDPOINT(), { method: "POST", body: form });
@@ -890,12 +906,15 @@
 
         const data = await res.json();
 
-        // ✅ 單輸出：text
         const text = (data.text ?? "").trim();
         const translated = (data.translated ?? "").trim();
 
-        outEn.textContent = text;
-        outZh.textContent = translated;
+        // 更新標籤顯示
+        tagSource.textContent = langFrom.toUpperCase();
+        tagTarget.textContent = langTo.toUpperCase();
+
+        outSource.textContent = text;
+        outTarget.textContent = translated;
         resultBox.style.display = "block";
 
         if (inputText.value.trim() === placeholderText) {
@@ -967,26 +986,30 @@
     }
 
     speakEnBtn.addEventListener("click", () => {
-      const t = outEn.textContent?.trim() || "";
+      // 朗讀原文（源語言）
+      const t = outSource.textContent?.trim() || "";
       if (!t) return alert("沒有內容可朗讀。");
-      speak(t, "en");
+      speak(t, langFrom);
     });
 
     speakZhBtn.addEventListener("click", () => {
-      const t = outZh.textContent?.trim() || "";
-      if (!t) return alert("沒有中文內容可朗讀。");
-      speak(t, "zh");
+      // 朗讀翻譯（目標語言）
+      const t = outTarget.textContent?.trim() || "";
+      if (!t) return alert("沒有翻譯內容可朗讀。");
+      speak(t, langTo);
     });
 
     /***********************
      * 10) Download button
      ***********************/
     document.getElementById("moreBtn").addEventListener("click", () => {
-      const textEn = outEn.textContent?.trim() || "";
-      const textZh = outZh.textContent?.trim() || "";
+      const textSource = outSource.textContent?.trim() || "";
+      const textTarget = outTarget.textContent?.trim() || "";
+      const srcLabel = tagSource.textContent?.trim() || "";
+      const tgtLabel = tagTarget.textContent?.trim() || "";
 
       // 檢查是否有任何內容
-      if (!textEn && !textZh && historyData.length === 0) {
+      if (!textSource && !textTarget && historyData.length === 0) {
         alert("目前沒有內容可下載。");
         return;
       }
@@ -998,13 +1021,13 @@
       content += "================================\n\n";
 
       // 目前的翻譯結果
-      if (textEn || textZh) {
+      if (textSource || textTarget) {
         content += "【最新翻譯】\n";
-        if (textEn) {
-          content += `[EN] ${textEn}\n`;
+        if (textSource) {
+          content += `[${srcLabel}] ${textSource}\n`;
         }
-        if (textZh) {
-          content += `[ZH] ${textZh}\n`;
+        if (textTarget) {
+          content += `[${tgtLabel}] ${textTarget}\n`;
         }
         content += "\n";
       }
@@ -1016,11 +1039,11 @@
         historyData.forEach((item, index) => {
           const timeStr = item.time.toLocaleString("zh-TW");
           content += `#${index + 1} (${timeStr})\n`;
-          if (item.textEn) {
-            content += `[EN] ${item.textEn}\n`;
+          if (item.textSource) {
+            content += `[${item.srcLabel}] ${item.textSource}\n`;
           }
-          if (item.textZh) {
-            content += `[ZH] ${item.textZh}\n`;
+          if (item.textTarget) {
+            content += `[${item.tgtLabel}] ${item.textTarget}\n`;
           }
           content += "\n";
         });
