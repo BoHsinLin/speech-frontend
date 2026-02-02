@@ -1,72 +1,798 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
-import tempfile
-import os
-from openai import OpenAI
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Listening AI</title>
+  <style>
+    :root{
+      --bg:#f2f2f2;
+      --panel:#ffffff;
+      --text:#111;
+      --muted:#8c8c8c;
+      --line:#e6e6e6;
+      --shadow: 0 8px 24px rgba(0,0,0,.08);
+      --radius: 14px;
+      --btn:#ffffff;
+      --btn-border:#e8e8e8;
+      --accent:#28c76f;
+      --danger:#ff4d4f;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, "Microsoft JhengHei", "PingFang TC", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .page{
+      max-width: 420px;
+      margin: 0 auto;
+      min-height: 100vh;
+      padding: 18px 14px 26px;
+    }
 
-app = FastAPI()
+    /* Header */
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 6px 2px 10px;
+    }
+    .brand{
+      font-weight:700;
+      font-size: 18px;
+      letter-spacing:.2px;
+    }
+    .auth a{
+      color:#111;
+      text-decoration:none;
+      font-weight:600;
+      font-size: 14px;
+    }
 
-def get_openai_client():
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY not set")
-    return OpenAI(api_key=api_key)
+    /* Timeline */
+    .timeline-wrap{
+      position: relative;
+      margin: 2px 0 10px;
+      padding-top: 8px;
+    }
+    .timer{
+      text-align:center;
+      font-variant-numeric: tabular-nums;
+      font-weight:700;
+      font-size: 14px;
+      color:#111;
+      margin-bottom: 8px;
+    }
+    .timeline{
+      height: 18px;
+      border-radius: 10px;
+      background: linear-gradient(to right, transparent 0, transparent 100%);
+      position: relative;
+      overflow:hidden;
+    }
+    .ticks{
+      position:absolute; inset:0;
+      background-image: repeating-linear-gradient(
+        to right,
+        rgba(0,0,0,.12) 0,
+        rgba(0,0,0,.12) 2px,
+        transparent 2px,
+        transparent 14px
+      );
+      opacity:.35;
+    }
+    .playhead{
+      position:absolute;
+      top:-8px;
+      left:50%;
+      width:2px;
+      height: 34px;
+      background: #ff5a5f;
+      border-radius: 2px;
+      transform: translateX(-50%);
+      opacity:.9;
+    }
 
+    /* Controls Row */
+    .controls{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      margin: 8px 0 12px;
+    }
+    .select{
+      flex:1;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      box-shadow: 0 1px 0 rgba(0,0,0,.02);
+    }
+    .select button{
+      all:unset;
+      cursor:pointer;
+      font-weight:700;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .select .chev{
+      color: var(--muted);
+      font-size: 14px;
+      margin-left: 6px;
+    }
+    .select .dropdown{
+      position: relative;
+    }
+    .menu{
+      position:absolute;
+      top: 42px;
+      left: 0;
+      right: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:none;
+      z-index: 10;
+    }
+    .menu button{
+      all:unset;
+      display:block;
+      width:100%;
+      padding: 12px 12px;
+      cursor:pointer;
+      font-weight:600;
+    }
+    .menu button:hover{
+      background:#fafafa;
+    }
 
-@app.post("/speech")
-async def speech_to_text(file: UploadFile = File(...)):
-    client = get_openai_client()
-    """
-    接收音檔，使用 Whisper 轉換為英文，再翻譯成繁體中文
-    回傳 JSON 格式：{"en": "英文文字", "zh": "中文文字"}
-    """
-    audio_path = None
-    
-    try:
-        # 1️⃣ 存音檔到暫存
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-            content = await file.read()
-            tmp.write(content)
-            audio_path = tmp.name
+    .bigbtn{
+      width: 56px;
+      height: 46px;
+      border-radius: 12px;
+      border: 1px solid var(--btn-border);
+      background: var(--btn);
+      display:grid;
+      place-items:center;
+      cursor:pointer;
+      box-shadow: 0 1px 0 rgba(0,0,0,.02);
+      user-select:none;
+    }
+    .bigbtn:active{ transform: translateY(1px); }
 
-        # 2️⃣ Whisper 語音轉文字（英文）
-        with open(audio_path, "rb") as audio:
-            transcript = client.audio.transcriptions.create(
-                model="whisper-1",
-                file=audio
-            )
+    .icon{
+      width: 22px; height: 22px; display:block;
+    }
+    .icon svg{ width:100%; height:100%; display:block; }
 
-        text_en = transcript.text
+    /* Card */
+    .card{
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .cardbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      gap: 10px;
+    }
 
-        # 3️⃣ 翻譯成中文
-        translate = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Translate English to Traditional Chinese"},
-                {"role": "user", "content": text_en}
-            ]
-        )
+    .langgroup{
+      display:flex;
+      align-items:center;
+      gap: 8px;
+    }
+    .pill{
+      border: 1px solid var(--line);
+      background:#fff;
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-weight:700;
+      font-size: 13px;
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      cursor:pointer;
+      user-select:none;
+    }
+    .pill .swap{ color:#111; opacity:.9; }
+    .mini-select{
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-weight:700;
+      font-size: 13px;
+      cursor:pointer;
+      user-select:none;
+      background:#fff;
+    }
+    .actions{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      color: var(--muted);
+    }
+    .iconbtn{
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background:#fff;
+      display:grid;
+      place-items:center;
+      cursor:pointer;
+      user-select:none;
+    }
 
-        text_zh = translate.choices[0].message.content
+    .editor{
+      padding: 12px 12px 10px;
+    }
+    textarea{
+      width: 100%;
+      min-height: 220px;
+      border: 0;
+      outline: none;
+      resize: none;
+      font-size: 16px;
+      line-height: 1.6;
+      font-family: inherit;
+    }
+    .placeholder{
+      color: #b3b3b3;
+    }
+    .result{
+      padding: 8px 12px 14px;
+      border-top: 1px dashed #ededed;
+      background: #fcfcfc;
+    }
+    .result .row{
+      display:flex;
+      gap: 10px;
+      align-items:flex-start;
+      margin-top: 8px;
+    }
+    .tag{
+      min-width: 38px;
+      font-weight:800;
+      font-size: 12px;
+      color:#666;
+      padding-top: 2px;
+    }
+    .textblock{
+      flex:1;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 15px;
+      line-height: 1.6;
+      color:#111;
+    }
 
-        # 4️⃣ 回傳結果
-        return {
-            "en": text_en,
-            "zh": text_zh
+    .status{
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+      display:flex;
+      justify-content:space-between;
+      gap: 10px;
+    }
+    .badge{
+      font-weight:700;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background:#fff;
+      color:#555;
+      font-size: 12px;
+    }
+
+    /* Responsive */
+    @media (max-width: 360px){
+      .page{ padding: 14px 10px 22px; }
+      textarea{ min-height: 200px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div class="brand">Transync AI</div>
+      <div class="auth"><a href="javascript:void(0)">註冊/登入</a></div>
+    </div>
+
+    <div class="timeline-wrap">
+      <div class="timer" id="timer">00:00:00</div>
+      <div class="timeline">
+        <div class="ticks"></div>
+        <div class="playhead"></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="select">
+        <div class="dropdown">
+          <button id="micBtn" type="button" aria-label="Microphone menu">
+            <span id="micLabel">麥克風</span>
+            <span class="chev">›</span>
+          </button>
+          <div class="menu" id="micMenu">
+            <button data-mode="mic">麥克風（錄音）</button>
+            <button data-mode="upload">上傳音檔（WAV）</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="bigbtn" id="recordBtn" title="開始/停止錄音">
+        <span class="icon" id="recordIcon">
+          <!-- play icon -->
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M8 5v14l11-7L8 5z" fill="var(--accent)"></path>
+          </svg>
+        </span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardbar">
+        <div class="langgroup">
+          <div class="mini-select" id="langFrom">en</div>
+          <div class="pill" id="swapBtn" title="交換語言">
+            <span class="swap">↔</span>
+            <span id="langTo">zh</span>
+          </div>
+          <div class="mini-select" id="pairMenuBtn" title="選擇語言對">
+            ▼
+          </div>
+        </div>
+
+        <div class="actions">
+          <div class="iconbtn" id="speakEnBtn" title="朗讀英文">
+            🔊<span style="font-size:12px;font-weight:800;margin-left:2px;">en</span>
+          </div>
+          <div class="iconbtn" id="speakZhBtn" title="朗讀中文">
+            🔊<span style="font-size:12px;font-weight:800;margin-left:2px;">zh</span>
+          </div>
+          <div class="iconbtn" id="moreBtn" title="更多">
+            ⋯
+          </div>
+        </div>
+      </div>
+
+      <div class="editor">
+        <textarea id="inputText" class="placeholder" spellcheck="false">源語言 / 翻譯語言</textarea>
+        <div class="status">
+          <span class="badge" id="modeBadge">模式：錄音</span>
+          <span class="badge" id="netBadge">API：未設定</span>
+        </div>
+      </div>
+
+      <div class="result" id="resultBox" style="display:none;">
+        <div class="row">
+          <div class="tag">EN</div>
+          <div class="textblock" id="outEn"></div>
+        </div>
+        <div class="row">
+          <div class="tag">ZH</div>
+          <div class="textblock" id="outZh"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden uploader -->
+    <input id="fileInput" type="file" accept="audio/wav" style="display:none" />
+
+  </div>
+
+  <script>
+    /***********************
+     * 1) 設定你的 Cloud Run API
+     * 把下面換成你 Cloud Run 服務網址，例如：
+     * const API_BASE = "https://speech-api-xxxxx-uc.a.run.app";
+     ***********************/
+    const API_BASE = "YOUR_CLOUD_RUN_BASE_URL_HERE"; // <- 改這裡
+    const SPEECH_ENDPOINT = () => `${API_BASE.replace(/\/$/, "")}/speech`;
+
+    /***********************
+     * 2) DOM
+     ***********************/
+    const timerEl = document.getElementById("timer");
+    const micBtn = document.getElementById("micBtn");
+    const micLabel = document.getElementById("micLabel");
+    const micMenu = document.getElementById("micMenu");
+    const recordBtn = document.getElementById("recordBtn");
+    const recordIcon = document.getElementById("recordIcon");
+    const modeBadge = document.getElementById("modeBadge");
+    const netBadge = document.getElementById("netBadge");
+    const fileInput = document.getElementById("fileInput");
+
+    const inputText = document.getElementById("inputText");
+    const resultBox = document.getElementById("resultBox");
+    const outEn = document.getElementById("outEn");
+    const outZh = document.getElementById("outZh");
+
+    const langFromEl = document.getElementById("langFrom");
+    const langToEl = document.getElementById("langTo");
+    const swapBtn = document.getElementById("swapBtn");
+    const pairMenuBtn = document.getElementById("pairMenuBtn");
+
+    const speakEnBtn = document.getElementById("speakEnBtn");
+    const speakZhBtn = document.getElementById("speakZhBtn");
+
+    /***********************
+     * 3) UI helpers
+     ***********************/
+    function setApiBadge(){
+      if (!API_BASE || API_BASE.includes("YOUR_CLOUD_RUN_BASE_URL_HERE")) {
+        netBadge.textContent = "API：未設定";
+        netBadge.style.borderColor = "#ffd6d6";
+        netBadge.style.color = "#c70000";
+      } else {
+        netBadge.textContent = "API：已設定";
+        netBadge.style.borderColor = "#d7f5e3";
+        netBadge.style.color = "#0f7a3c";
+      }
+    }
+    setApiBadge();
+
+    // textarea placeholder behavior
+    const placeholderText = "源語言 / 翻譯語言";
+    inputText.addEventListener("focus", () => {
+      if (inputText.value.trim() === placeholderText) {
+        inputText.value = "";
+        inputText.classList.remove("placeholder");
+      }
+    });
+    inputText.addEventListener("blur", () => {
+      if (!inputText.value.trim()) {
+        inputText.value = placeholderText;
+        inputText.classList.add("placeholder");
+      }
+    });
+
+    // mic menu toggle
+    micBtn.addEventListener("click", () => {
+      micMenu.style.display = micMenu.style.display === "block" ? "none" : "block";
+    });
+    document.addEventListener("click", (e) => {
+      if (!micMenu.contains(e.target) && !micBtn.contains(e.target)) {
+        micMenu.style.display = "none";
+      }
+    });
+
+    let mode = "mic"; // "mic" | "upload"
+    micMenu.querySelectorAll("button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        mode = btn.dataset.mode;
+        micMenu.style.display = "none";
+        if (mode === "mic") {
+          micLabel.textContent = "麥克風";
+          modeBadge.textContent = "模式：錄音";
+        } else {
+          micLabel.textContent = "上傳音檔";
+          modeBadge.textContent = "模式：上傳";
         }
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"處理音檔時發生錯誤: {str(e)}")
-    
-    finally:
-        # 5️⃣ 清理暫存檔案
-        if audio_path and os.path.exists(audio_path):
-            try:
-                os.remove(audio_path)
-            except Exception:
-                pass
+      });
+    });
 
+    // language pairs (簡化：en<->zh)
+    let langFrom = "en";
+    let langTo = "zh";
+    function renderLang(){
+      langFromEl.textContent = langFrom;
+      langToEl.textContent = langTo;
+    }
+    renderLang();
 
-@app.get("/")
-async def root():
-    """健康檢查端點"""
-    return {"status": "ok", "message": "Speech API is running"}
+    swapBtn.addEventListener("click", () => {
+      [langFrom, langTo] = [langTo, langFrom];
+      renderLang();
+    });
+
+    // small pair menu: cycle few common pairs
+    const pairs = [
+      ["en","zh"], ["zh","en"],
+      ["ja","zh"], ["zh","ja"],
+      ["ko","zh"], ["zh","ko"]
+    ];
+    pairMenuBtn.addEventListener("click", () => {
+      const idx = pairs.findIndex(p => p[0]===langFrom && p[1]===langTo);
+      const next = pairs[(idx + 1) % pairs.length];
+      langFrom = next[0]; langTo = next[1];
+      renderLang();
+    });
+
+    /***********************
+     * 4) Timer
+     ***********************/
+    let t0 = null;
+    let rafId = null;
+    function fmtTime(ms){
+      const total = Math.floor(ms / 1000);
+      const h = String(Math.floor(total / 3600)).padStart(2,"0");
+      const m = String(Math.floor((total % 3600) / 60)).padStart(2,"0");
+      const s = String(total % 60).padStart(2,"0");
+      return `${h}:${m}:${s}`;
+    }
+    function startTimer(){
+      t0 = performance.now();
+      cancelAnimationFrame(rafId);
+      const tick = () => {
+        const now = performance.now();
+        timerEl.textContent = fmtTime(now - t0);
+        rafId = requestAnimationFrame(tick);
+      };
+      rafId = requestAnimationFrame(tick);
+    }
+    function stopTimer(){
+      cancelAnimationFrame(rafId);
+      rafId = null;
+      t0 = null;
+    }
+    function resetTimer(){
+      timerEl.textContent = "00:00:00";
+    }
+
+    /***********************
+     * 5) WAV Recorder (純前端把麥克風音訊編碼成 WAV)
+     * 這樣就能穩定對接你後端目前用 .wav 暫存的流程 :contentReference[oaicite:1]{index=1}
+     ***********************/
+    let audioStream = null;
+    let audioCtx = null;
+    let processor = null;
+    let sourceNode = null;
+    let recording = false;
+    let pcmData = [];
+    let sampleRate = 44100;
+
+    function floatTo16BitPCM(float32Array){
+      const buffer = new Int16Array(float32Array.length);
+      for (let i=0; i<float32Array.length; i++){
+        let s = Math.max(-1, Math.min(1, float32Array[i]));
+        buffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+      return buffer;
+    }
+
+    function writeWavHeader(view, sampleRate, numChannels, numFrames){
+      const bytesPerSample = 2;
+      const blockAlign = numChannels * bytesPerSample;
+      const byteRate = sampleRate * blockAlign;
+      const dataSize = numFrames * blockAlign;
+
+      function writeString(offset, str){
+        for (let i=0; i<str.length; i++){
+          view.setUint8(offset + i, str.charCodeAt(i));
+        }
+      }
+
+      writeString(0, "RIFF");
+      view.setUint32(4, 36 + dataSize, true);
+      writeString(8, "WAVE");
+      writeString(12, "fmt ");
+      view.setUint32(16, 16, true);         // Subchunk1Size
+      view.setUint16(20, 1, true);          // PCM
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, byteRate, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, 16, true);         // bits per sample
+      writeString(36, "data");
+      view.setUint32(40, dataSize, true);
+    }
+
+    function encodeWavFromPCM(pcmChunks, sampleRate, numChannels=1){
+      // pcmChunks: Array<Int16Array>
+      const totalLength = pcmChunks.reduce((acc, arr) => acc + arr.length, 0);
+      const buffer = new ArrayBuffer(44 + totalLength * 2);
+      const view = new DataView(buffer);
+      writeWavHeader(view, sampleRate, numChannels, totalLength);
+
+      let offset = 44;
+      for (const chunk of pcmChunks){
+        for (let i=0; i<chunk.length; i++){
+          view.setInt16(offset, chunk[i], true);
+          offset += 2;
+        }
+      }
+      return new Blob([buffer], { type: "audio/wav" });
+    }
+
+    async function startRecording(){
+      if (recording) return;
+      if (!navigator.mediaDevices?.getUserMedia) {
+        alert("此瀏覽器不支援麥克風錄音。");
+        return;
+      }
+
+      pcmData = [];
+      audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      sampleRate = audioCtx.sampleRate;
+
+      sourceNode = audioCtx.createMediaStreamSource(audioStream);
+      processor = audioCtx.createScriptProcessor(4096, 1, 1);
+
+      processor.onaudioprocess = (e) => {
+        if (!recording) return;
+        const input = e.inputBuffer.getChannelData(0);
+        pcmData.push(floatTo16BitPCM(input));
+      };
+
+      sourceNode.connect(processor);
+      processor.connect(audioCtx.destination);
+
+      recording = true;
+      startTimer();
+
+      // UI icon -> stop
+      recordIcon.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none">
+          <rect x="7" y="7" width="10" height="10" rx="2" fill="var(--danger)"></rect>
+        </svg>
+      `;
+    }
+
+    async function stopRecording(){
+      if (!recording) return null;
+      recording = false;
+
+      stopTimer();
+
+      try{
+        processor?.disconnect();
+        sourceNode?.disconnect();
+      }catch(e){}
+
+      if (audioStream){
+        audioStream.getTracks().forEach(t => t.stop());
+      }
+
+      try{ await audioCtx?.close(); }catch(e){}
+      audioCtx = null;
+      audioStream = null;
+      processor = null;
+      sourceNode = null;
+
+      // UI icon -> play
+      recordIcon.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M8 5v14l11-7L8 5z" fill="var(--accent)"></path>
+        </svg>
+      `;
+
+      resetTimer();
+
+      // Export wav
+      const wavBlob = encodeWavFromPCM(pcmData, sampleRate, 1);
+      return wavBlob;
+    }
+
+    /***********************
+     * 6) Call backend /speech
+     ***********************/
+    async function sendToSpeechApi(wavBlob){
+      if (!API_BASE || API_BASE.includes("YOUR_CLOUD_RUN_BASE_URL_HERE")) {
+        alert("請先把 API_BASE 改成你的 Cloud Run 服務網址。");
+        return;
+      }
+
+      // UI
+      modeBadge.textContent = "處理中…";
+
+      const form = new FormData();
+      form.append("file", wavBlob, "record.wav");
+
+      try{
+        const res = await fetch(SPEECH_ENDPOINT(), {
+          method: "POST",
+          body: form
+        });
+
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(`HTTP ${res.status}: ${t}`);
+        }
+
+        const data = await res.json();
+        // 你的後端回 { en, zh } :contentReference[oaicite:2]{index=2}
+        outEn.textContent = (data.en ?? "").trim();
+        outZh.textContent = (data.zh ?? "").trim();
+        resultBox.style.display = "block";
+
+        // 把輸入框也同步顯示「源語言 / 翻譯語言」的結果（看你喜好）
+        if (inputText.value.trim() === placeholderText) {
+          inputText.value = "";
+          inputText.classList.remove("placeholder");
+        }
+        inputText.value = (langFrom === "en" ? outEn.textContent : outZh.textContent) || inputText.value;
+
+        modeBadge.textContent = (mode === "mic") ? "模式：錄音" : "模式：上傳";
+      } catch (err){
+        console.error(err);
+        alert("呼叫 API 失敗：\n" + (err?.message || err));
+        modeBadge.textContent = (mode === "mic") ? "模式：錄音" : "模式：上傳";
+      }
+    }
+
+    /***********************
+     * 7) Button behavior
+     ***********************/
+    recordBtn.addEventListener("click", async () => {
+      if (mode === "upload") {
+        fileInput.click();
+        return;
+      }
+
+      // mic mode
+      if (!recording) {
+        await startRecording();
+      } else {
+        const wavBlob = await stopRecording();
+        if (wavBlob) await sendToSpeechApi(wavBlob);
+      }
+    });
+
+    fileInput.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (!file.type.includes("wav")) {
+        alert("請上傳 WAV 檔。");
+        return;
+      }
+      await sendToSpeechApi(file);
+      fileInput.value = "";
+    });
+
+    /***********************
+     * 8) Speak (Web Speech API)
+     ***********************/
+    function speak(text, lang){
+      if (!("speechSynthesis" in window)) {
+        alert("此瀏覽器不支援朗讀功能。");
+        return;
+      }
+      window.speechSynthesis.cancel();
+
+      const u = new SpeechSynthesisUtterance(text);
+      // lang suggestions
+      if (lang === "zh") u.lang = "zh-TW";
+      else if (lang === "ja") u.lang = "ja-JP";
+      else if (lang === "ko") u.lang = "ko-KR";
+      else u.lang = "en-US";
+
+      window.speechSynthesis.speak(u);
+    }
+
+    speakEnBtn.addEventListener("click", () => {
+      const t = outEn.textContent?.trim() || "";
+      if (!t) return alert("沒有英文內容可朗讀。");
+      speak(t, "en");
+    });
+
+    speakZhBtn.addEventListener("click", () => {
+      const t = outZh.textContent?.trim() || "";
+      if (!t) return alert("沒有中文內容可朗讀。");
+      speak(t, "zh");
+    });
+
+    /***********************
+     * 9) More button (placeholder)
+     ***********************/
+    document.getElementById("moreBtn").addEventListener("click", () => {
+      alert("你可以在這裡加：清除、複製、下載字幕、歷史紀錄…");
+    });
+  </script>
+</body>
+</html>
