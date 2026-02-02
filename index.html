@@ -441,7 +441,7 @@
           <div class="iconbtn" id="speakZhBtn" title="朗讀中文">
             🔊<span style="font-size:12px;font-weight:800;margin-left:2px;">zh</span>
           </div>
-          <div class="iconbtn" id="moreBtn" title="更多">⋯</div>
+          <div class="iconbtn" id="moreBtn" title="下載文字">⬇</div>
         </div>
       </div>
 
@@ -979,10 +979,39 @@
     });
 
     /***********************
-     * 10) More button (placeholder)
+     * 10) Download button
      ***********************/
     document.getElementById("moreBtn").addEventListener("click", () => {
-      alert("你可以在這裡加：清除、複製、下載字幕、歷史紀錄…");
+      const textEn = outEn.textContent?.trim() || "";
+      const textZh = outZh.textContent?.trim() || "";
+
+      if (!textEn && !textZh) {
+        alert("目前沒有內容可下載。");
+        return;
+      }
+
+      // 組合文字內容
+      let content = "";
+      content += "=== 翻譯紀錄 ===\n";
+      content += `時間：${new Date().toLocaleString("zh-TW")}\n\n`;
+      
+      if (textEn) {
+        content += `[原文 EN]\n${textEn}\n\n`;
+      }
+      if (textZh) {
+        content += `[翻譯 ZH]\n${textZh}\n`;
+      }
+
+      // 建立下載
+      const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `翻譯_${new Date().toISOString().slice(0,10)}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     });
   </script>
 </body>
