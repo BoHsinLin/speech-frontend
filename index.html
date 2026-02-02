@@ -721,9 +721,10 @@
 
         // ✅ 單輸出：text
         const text = (data.text ?? "").trim();
+        const translated = (data.translated ?? "").trim();
 
         outEn.textContent = text;
-        outZh.textContent = ""; // 目前未做翻譯，先留空
+        outZh.textContent = translated;
         resultBox.style.display = "block";
 
         if (inputText.value.trim() === placeholderText) {
