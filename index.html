@@ -300,6 +300,85 @@
       font-size: 12px;
     }
 
+    /* History Section */
+    .history-section{
+      margin-top: 16px;
+    }
+    .history-header{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 4px;
+    }
+    .history-title{
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .history-clear{
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+    .history-clear:hover{
+      background: #f5f5f5;
+    }
+    .history-list{
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .history-item{
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+      opacity: 0.85;
+      transition: opacity 0.2s;
+    }
+    .history-item:hover{
+      opacity: 1;
+    }
+    .history-time{
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .history-row{
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      margin-top: 6px;
+    }
+    .history-tag{
+      min-width: 32px;
+      font-weight: 800;
+      font-size: 11px;
+      color: #888;
+      padding-top: 1px;
+    }
+    .history-text{
+      flex: 1;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #333;
+    }
+    .history-empty{
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 20px;
+    }
+
     /* Responsive */
     @media (max-width: 360px){
       .page{ padding: 14px 10px 22px; }
@@ -310,8 +389,8 @@
 <body>
   <div class="page">
     <div class="topbar">
-      <div class="brand">Transync AI</div>
-      <div class="auth"><a href="javascript:void(0)">註冊/登入</a></div>
+      <div class="brand">Translate Good Friend</div>
+
     </div>
 
     <div class="timeline-wrap">
@@ -353,7 +432,7 @@
             <span class="swap">↔</span>
             <span id="langTo">zh</span>
           </div>
-          <div class="mini-select" id="pairMenuBtn" title="選擇語言對">▼</div>
+
         </div>
 
         <div class="actions">
@@ -384,6 +463,17 @@
           <div class="tag">ZH</div>
           <div class="textblock" id="outZh"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- History Section -->
+    <div class="history-section" id="historySection">
+      <div class="history-header">
+        <span class="history-title">📜 歷史紀錄</span>
+        <button class="history-clear" id="clearHistoryBtn">清除全部</button>
+      </div>
+      <div class="history-list" id="historyList">
+        <div class="history-empty" id="historyEmpty">尚無歷史紀錄</div>
       </div>
     </div>
 
@@ -424,6 +514,14 @@
 
     const speakEnBtn = document.getElementById("speakEnBtn");
     const speakZhBtn = document.getElementById("speakZhBtn");
+
+    // History elements
+    const historyList = document.getElementById("historyList");
+    const historyEmpty = document.getElementById("historyEmpty");
+    const clearHistoryBtn = document.getElementById("clearHistoryBtn");
+
+    // History data
+    let historyData = [];
 
     /***********************
      * 3) UI helpers
@@ -695,13 +793,99 @@
 
 
     /***********************
-     * 6) Call backend /speech
+     * 6) History functions
+     ***********************/
+    function formatTimestamp(date) {
+      const h = String(date.getHours()).padStart(2, "0");
+      const m = String(date.getMinutes()).padStart(2, "0");
+      const s = String(date.getSeconds()).padStart(2, "0");
+      return `${h}:${m}:${s}`;
+    }
+
+    function saveToHistory(textEn, textZh) {
+      // 如果有內容才儲存
+      if (!textEn && !textZh) return;
+
+      const item = {
+        id: Date.now(),
+        time: new Date(),
+        textEn: textEn,
+        textZh: textZh
+      };
+
+      historyData.unshift(item); // 新的放最前面
+      renderHistory();
+    }
+
+    function renderHistory() {
+      // 清除現有內容（除了空訊息）
+      const items = historyList.querySelectorAll(".history-item");
+      items.forEach(el => el.remove());
+
+      if (historyData.length === 0) {
+        historyEmpty.style.display = "block";
+        return;
+      }
+
+      historyEmpty.style.display = "none";
+
+      historyData.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "history-item";
+        div.dataset.id = item.id;
+
+        div.innerHTML = `
+          <div class="history-time">
+            <span>🕐 ${formatTimestamp(item.time)}</span>
+          </div>
+          <div class="history-row">
+            <div class="history-tag">EN</div>
+            <div class="history-text">${escapeHtml(item.textEn) || "-"}</div>
+          </div>
+          <div class="history-row">
+            <div class="history-tag">ZH</div>
+            <div class="history-text">${escapeHtml(item.textZh) || "-"}</div>
+          </div>
+        `;
+
+        historyList.appendChild(div);
+      });
+    }
+
+    function escapeHtml(text) {
+      if (!text) return "";
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function clearHistory() {
+      historyData = [];
+      renderHistory();
+    }
+
+    clearHistoryBtn.addEventListener("click", () => {
+      if (historyData.length === 0) return;
+      if (confirm("確定要清除所有歷史紀錄嗎？")) {
+        clearHistory();
+      }
+    });
+
+    /***********************
+     * 7) Call backend /speech
      * ✅ 後端目前回 { text: "..." }
      ***********************/
     async function sendToSpeechApi(wavBlob){
       if (!API_BASE) {
         alert("請先設定 API_BASE。");
         return;
+      }
+
+      // ✅ 先將目前的結果存入歷史紀錄（如果有的話）
+      const currentEn = outEn.textContent?.trim() || "";
+      const currentZh = outZh.textContent?.trim() || "";
+      if (currentEn || currentZh) {
+        saveToHistory(currentEn, currentZh);
       }
 
       modeBadge.textContent = "處理中…";
@@ -742,7 +926,7 @@
     }
 
     /***********************
-     * 7) Button behavior
+     * 8) Button behavior
      ***********************/
     recordBtn.addEventListener("click", async () => {
       if (mode === "upload") {
@@ -777,7 +961,7 @@
     });
 
     /***********************
-     * 8) Speak (Web Speech API)
+     * 9) Speak (Web Speech API)
      ***********************/
     function speak(text, lang){
       if (!("speechSynthesis" in window)) {
@@ -808,7 +992,7 @@
     });
 
     /***********************
-     * 9) More button (placeholder)
+     * 10) More button (placeholder)
      ***********************/
     document.getElementById("moreBtn").addEventListener("click", () => {
       alert("你可以在這裡加：清除、複製、下載字幕、歷史紀錄…");
