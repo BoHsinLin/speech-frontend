@@ -1,47 +1,72 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Speech Translator</title>
-</head>
-<body>
-  <h2>🎙 英文 → 中文 即時翻譯</h2>
+from fastapi import FastAPI, UploadFile, File, HTTPException
+import tempfile
+import os
+from openai import OpenAI
 
-  <button id="start">開始錄音</button>
-  <button id="stop" disabled>停止</button>
+app = FastAPI()
 
-  <h3>英文</h3>
-  <pre id="en"></pre>
+def get_openai_client():
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY not set")
+    return OpenAI(api_key=api_key)
 
-  <h3>中文</h3>
-  <pre id="zh"></pre>
 
-  <script>
-    const startBtn = document.getElementById("start");
-    const enBox = document.getElementById("en");
-  
-    let recognition;
-  
-    startBtn.onclick = () => {
-      enBox.textContent = "🎧 Listening...";
-  
-      recognition = new webkitSpeechRecognition();
-      recognition.lang = "en-US";
-      recognition.interimResults = false;
-      recognition.continuous = false;
-  
-      recognition.onresult = (event) => {
-        enBox.textContent = event.results[0][0].transcript;
-      };
-  
-      recognition.onerror = (e) => {
-        enBox.textContent = "❌ " + e.error;
-      };
-  
-      recognition.start();
-    };
-  </script>
-  
-</body>
-</html>
+@app.post("/speech")
+async def speech_to_text(file: UploadFile = File(...)):
+    client = get_openai_client()
+    """
+    接收音檔，使用 Whisper 轉換為英文，再翻譯成繁體中文
+    回傳 JSON 格式：{"en": "英文文字", "zh": "中文文字"}
+    """
+    audio_path = None
+    
+    try:
+        # 1️⃣ 存音檔到暫存
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            content = await file.read()
+            tmp.write(content)
+            audio_path = tmp.name
+
+        # 2️⃣ Whisper 語音轉文字（英文）
+        with open(audio_path, "rb") as audio:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio
+            )
+
+        text_en = transcript.text
+
+        # 3️⃣ 翻譯成中文
+        translate = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Translate English to Traditional Chinese"},
+                {"role": "user", "content": text_en}
+            ]
+        )
+
+        text_zh = translate.choices[0].message.content
+
+        # 4️⃣ 回傳結果
+        return {
+            "en": text_en,
+            "zh": text_zh
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"處理音檔時發生錯誤: {str(e)}")
+    
+    finally:
+        # 5️⃣ 清理暫存檔案
+        if audio_path and os.path.exists(audio_path):
+            try:
+                os.remove(audio_path)
+            except Exception:
+                pass
+
+
+@app.get("/")
+async def root():
+    """健康檢查端點"""
+    return {"status": "ok", "message": "Speech API is running"}
