@@ -985,7 +985,8 @@
       const textEn = outEn.textContent?.trim() || "";
       const textZh = outZh.textContent?.trim() || "";
 
-      if (!textEn && !textZh) {
+      // 檢查是否有任何內容
+      if (!textEn && !textZh && historyData.length === 0) {
         alert("目前沒有內容可下載。");
         return;
       }
@@ -993,13 +994,36 @@
       // 組合文字內容
       let content = "";
       content += "=== 翻譯紀錄 ===\n";
-      content += `時間：${new Date().toLocaleString("zh-TW")}\n\n`;
-      
-      if (textEn) {
-        content += `[原文 EN]\n${textEn}\n\n`;
+      content += `匯出時間：${new Date().toLocaleString("zh-TW")}\n`;
+      content += "================================\n\n";
+
+      // 目前的翻譯結果
+      if (textEn || textZh) {
+        content += "【最新翻譯】\n";
+        if (textEn) {
+          content += `[EN] ${textEn}\n`;
+        }
+        if (textZh) {
+          content += `[ZH] ${textZh}\n`;
+        }
+        content += "\n";
       }
-      if (textZh) {
-        content += `[翻譯 ZH]\n${textZh}\n`;
+
+      // 歷史紀錄
+      if (historyData.length > 0) {
+        content += "【歷史紀錄】\n";
+        content += "--------------------------------\n";
+        historyData.forEach((item, index) => {
+          const timeStr = item.time.toLocaleString("zh-TW");
+          content += `#${index + 1} (${timeStr})\n`;
+          if (item.textEn) {
+            content += `[EN] ${item.textEn}\n`;
+          }
+          if (item.textZh) {
+            content += `[ZH] ${item.textZh}\n`;
+          }
+          content += "\n";
+        });
       }
 
       // 建立下載
@@ -1007,7 +1031,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `翻譯_${new Date().toISOString().slice(0,10)}.txt`;
+      a.download = `翻譯紀錄_${new Date().toISOString().slice(0,10)}.txt`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
