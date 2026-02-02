@@ -389,7 +389,7 @@
 
     <!-- Hidden uploader -->
     <!-- iPhone 選檔更順：audio/* -->
-    <input id="fileInput" type="file" accept="audio/*" style="display:none" />
+    <input id="fileInput" type="file" accept="audio/wav" style="display:none" />
   </div>
 
   <script>
@@ -744,13 +744,13 @@
 
       // iPhone 選檔可能 type 是 audio/x-wav 或甚至空字串，這裡不要太嚴格
       const name = (file.name || "").toLowerCase();
-      const looksWav = name.endsWith(".wav") || (file.type && file.type.includes("wav"));
 
-      if (!looksWav) {
-        // 仍可嘗試送出（Google 可能可辨）
-        const ok = confirm("看起來不是 WAV，仍要上傳辨識嗎？");
-        if (!ok) { fileInput.value = ""; return; }
+      if (!name.endsWith(".wav")) {
+        alert("目前僅支援 WAV 音檔（LINEAR16）。");
+        fileInput.value = "";
+        return;
       }
+
 
       await sendToSpeechApi(file);
       fileInput.value = "";
