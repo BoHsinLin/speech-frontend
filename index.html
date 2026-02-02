@@ -432,7 +432,6 @@
             <span class="swap">↔</span>
             <span id="langTo">zh</span>
           </div>
-          <div class="mini-select" id="pairMenuBtn" title="選擇語言對">▼</div>
         </div>
 
         <div class="actions">
@@ -510,7 +509,6 @@
     const langFromEl = document.getElementById("langFrom");
     const langToEl = document.getElementById("langTo");
     const swapBtn = document.getElementById("swapBtn");
-    const pairMenuBtn = document.getElementById("pairMenuBtn");
 
     const speakEnBtn = document.getElementById("speakEnBtn");
     const speakZhBtn = document.getElementById("speakZhBtn");
@@ -590,18 +588,6 @@
 
     swapBtn.addEventListener("click", () => {
       [langFrom, langTo] = [langTo, langFrom];
-      renderLang();
-    });
-
-    const pairs = [
-      ["en","zh"], ["zh","en"],
-      ["ja","zh"], ["zh","ja"],
-      ["ko","zh"], ["zh","ko"]
-    ];
-    pairMenuBtn.addEventListener("click", () => {
-      const idx = pairs.findIndex(p => p[0]===langFrom && p[1]===langTo);
-      const next = pairs[(idx + 1) % pairs.length];
-      langFrom = next[0]; langTo = next[1];
       renderLang();
     });
 
