@@ -643,6 +643,7 @@
     let audioCtx = null;
     let processor = null;
     let sourceNode = null;
+    let gainNode = null;
     let recording = false;
     let pcmData = [];
     let sampleRate = 44100;
@@ -731,7 +732,7 @@
       processor.connect(audioCtx.destination);
 
       // 🔇 避免回授：把 gain 設成 0
-      const gainNode = audioCtx.createGain();
+      gainNode = audioCtx.createGain();
       gainNode.gain.value = 0;
       processor.disconnect();
       processor.connect(gainNode);
