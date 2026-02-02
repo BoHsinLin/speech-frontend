@@ -683,7 +683,7 @@
      * 6) Call backend /speech
      ***********************/
     async function sendToSpeechApi(wavBlob){
-      if (!API_BASE || API_BASE.includes("YOUR_CLOUD_RUN_BASE_URL_HERE")) {
+      if (!API_BASE || API_BASE.includes("https://speech-api-506893213123.europe-west1.run.app/Speech")) {
         alert("請先把 API_BASE 改成你的 Cloud Run 服務網址。");
         return;
       }
