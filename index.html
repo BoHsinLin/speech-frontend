@@ -629,8 +629,15 @@
 
       sourceNode.connect(processor);
 
-      // ✅ 不接到 destination，避免 iPhone 回授/噪音
-      // processor.connect(audioCtx.destination);
+      // ✅ 一定要接，不然 iOS 可能不觸發 onaudioprocess
+      processor.connect(audioCtx.destination);
+
+      // 🔇 避免回授：把 gain 設成 0
+      const gainNode = audioCtx.createGain();
+      gainNode.gain.value = 0;
+      processor.disconnect();
+      processor.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
 
       recording = true;
       startTimer();
@@ -651,6 +658,7 @@
       try{
         processor?.disconnect();
         sourceNode?.disconnect();
+        gainNode?.disconnect();   // ✅ 新增
       }catch(e){}
 
       if (audioStream){
@@ -658,10 +666,12 @@
       }
 
       try{ await audioCtx?.close(); }catch(e){}
+
       audioCtx = null;
       audioStream = null;
       processor = null;
       sourceNode = null;
+      gainNode = null;            // ✅ 新增
 
       recordIcon.innerHTML = `
         <svg viewBox="0 0 24 24" fill="none">
@@ -671,9 +681,18 @@
 
       resetTimer();
 
+      // ✅ 關鍵檢查：真的有沒有錄到聲音
+      console.log("PCM chunks:", pcmData.length);
+
+      if (pcmData.length === 0) {
+        alert("⚠️ 沒有錄到聲音，請重新錄音");
+        return null;
+      }
+
       const wavBlob = encodeWavFromPCM(pcmData, sampleRate, 1);
       return wavBlob;
     }
+
 
     /***********************
      * 6) Call backend /speech
